@@ -1,0 +1,27 @@
+{
+  "name": "user-management-vue-pinia-tanstack",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@ant-design/icons-vue": "^7.0.1",
+    "@handsontable/vue3": "^14.3.0",
+    "@tanstack/vue-query": "^5.28.9",
+    "@tanstack/vue-table": "^8.15.0",
+    "ant-design-vue": "^4.2.1",
+    "fuse.js": "^7.0.0",
+    "handsontable": "^14.3.0",
+    "pinia": "^2.1.7",
+    "vue": "^3.4.21",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.0.4",
+    "vite": "^5.2.8"
+  }
+}
