@@ -66,3 +66,29 @@ export function fuzzySearchList(items, query, keys) {
   results.sort((a, b) => b.score - a.score);
   return results.map(r => r.item);
 }
+
+/**
+ * 💡 ALGORITHM NOTE: Thuật toán Tìm Kiếm Nhị Phân (Binary Search Algorithm - O(log N))
+ * Kiểm tra xem một STT (Chỉ số dòng) có nằm trong danh sách các dòng bị lỗi đã được sắp xếp hay không.
+ * Giúp Handsontable cell renderer kiểm tra siêu tốc mà không làm giật lag giao diện khi cuộn.
+ */
+export function binarySearchRow(sortedFailedIndices, targetIndex) {
+  if (!sortedFailedIndices || sortedFailedIndices.length === 0) return false;
+
+  let left = 0;
+  let right = sortedFailedIndices.length - 1;
+
+  while (left <= right) {
+    const mid = Math.floor((left + right) / 2);
+    if (sortedFailedIndices[mid] === targetIndex) {
+      return true;
+    }
+    if (sortedFailedIndices[mid] < targetIndex) {
+      left = mid + 1;
+    } else {
+      right = mid - 1;
+    }
+  }
+
+  return false;
+}

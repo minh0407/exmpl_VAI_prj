@@ -140,7 +140,7 @@ import 'handsontable/dist/handsontable.full.min.css';
 
 import { useUserStore } from '../stores/userStore';
 import { parseExcelFile, downloadSampleExcelTemplate } from '../utils/excelHelper';
-import { fuzzySearchList } from '../utils/fuzzySearch';
+import { fuzzySearchList, binarySearchRow } from '../utils/fuzzySearch';
 import { getValueFromRow, removeVietnameseAccents } from '../utils/vietnamese';
 
 const store = useUserStore();
@@ -151,6 +151,19 @@ let hotInstance = null;
 const parsedRows = ref([]);
 const filteredRows = ref([]);
 const searchQuery = ref('');
+
+// Mảng danh sách STT các dòng bị lỗi đã được sắp xếp để phục vụ Thuật toán Binary Search O(log N)
+const sortedFailedIndices = computed(() => {
+  if (!store.lastFailedRows || store.lastFailedRows.length === 0) return [];
+  return store.lastFailedRows.map(r => r.rowIndex).sort((a, b) => a - b);
+});
+
+// Tự động re-render lại Handsontable để cập nhật dấu cảnh báo đỏ khi phát hiện lỗi
+watch(sortedFailedIndices, () => {
+  if (hotInstance) {
+    hotInstance.render();
+  }
+});
 
 // 💡 Gợi ý AutoComplete thông minh cho ô tìm kiếm trong Modal Excel
 const modalAutoCompleteOptions = computed(() => {
@@ -222,6 +235,30 @@ const initHandsontable = (data) => {
       { type: 'autocomplete', source: ['CNM-VAI', 'VTNet', 'VAI', 'VTS', 'TT Phần mềm', 'Khối Công nghệ', 'Khối Kinh doanh'], strict: false, width: 140 },
       { type: 'autocomplete', source: ['Admin', 'User', 'Editor'], strict: false, width: 100 },
     ],
+    // 💡 ALGORITHM NOTE: DÙNG BINARY SEARCH O(log N) ĐỂ ĐÁNH DẤU ĐỎ CẢNH BÁO CÁC DÒNG LỖI
+    cells: function (row, col) {
+      const cellProperties = {};
+      const stt = row + 1;
+
+      if (sortedFailedIndices.value && sortedFailedIndices.value.length > 0) {
+        // Thuật toán Binary Search kiểm tra xem STT dòng này có bị lỗi hay không
+        if (binarySearchRow(sortedFailedIndices.value, stt)) {
+          cellProperties.renderer = function (instance, td, r, c, prop, value, cellProperties) {
+            Handsontable.renderers.TextRenderer.apply(this, arguments);
+            td.style.backgroundColor = '#fff1f0'; // Nền đỏ nhạt cảnh báo
+            td.style.color = '#cf1322';           // Chữ màu đỏ
+            td.style.fontWeight = 'bold';
+
+            if (c === 0) { // Cột STT
+              td.innerHTML = `<span style="color: #ff4d4f; font-weight: bold; display: flex; align-items: center; justify-content: center; gap: 4px;">🚨 ${value}</span>`;
+              td.title = "🚨 Dòng này chứa dữ liệu không hợp lệ (Bị lỗi)!";
+            }
+          };
+        }
+      }
+
+      return cellProperties;
+    },
     // 💡 LAZY LOAD & VIRTUALIZATION OPTIMIZATION CONFIG:
     renderAllRows: false,              // Chỉ render các row hiển thị trong Viewport
     viewportRowRenderingOffset: 15,    // Buffer 15 rows khi cuộn mượt
@@ -235,6 +272,7 @@ const initHandsontable = (data) => {
     licenseKey: 'non-commercial-and-evaluation',
   });
 };
+
 
 
 const handleFileSelect = async (file) => {
