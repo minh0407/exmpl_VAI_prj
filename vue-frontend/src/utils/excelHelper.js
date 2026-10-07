@@ -1,4 +1,5 @@
 import * as XLSX from 'xlsx';
+import { removeVietnameseAccents } from './vietnamese';
 
 /**
  * Tạo và tải xuống file Excel mẫu
@@ -7,9 +8,9 @@ export function downloadSampleExcelTemplate() {
   const sampleData = [
     {
       'STT': 1,
-      'Họ và tên': 'Super Admin',
+      'Họ và tên': 'Super Admin Demo',
       'Mã nhân viên': '999999',
-      'Email': 'super_admin@viettelai.vn',
+      'Email': 'super_admin@example.com',
       'Số điện thoại': '0988888888',
       'Địa chỉ': 'Hà Nội',
       'Chức danh': 'Super Admin',
@@ -18,10 +19,10 @@ export function downloadSampleExcelTemplate() {
     },
     {
       'STT': 2,
-      'Họ và tên': 'Trần Huy Hoàng',
+      'Họ và tên': 'Trần Huy Hoàng Demo',
       'Mã nhân viên': '431452',
-      'Email': 'hoangth33@viettel.com.vn',
-      'Số điện thoại': '868695383',
+      'Email': 'hoang.demo@example.com',
+      'Số điện thoại': '900000002',
       'Địa chỉ': 'Hà Nội',
       'Chức danh': 'Kỹ sư trí tuệ nhân tạo',
       'Đơn vị': 'CNM-VAI',
@@ -29,20 +30,20 @@ export function downloadSampleExcelTemplate() {
     },
     {
       'STT': 3,
-      'Họ và tên': 'Nguyễn Khắc Minh',
+      'Họ và tên': 'Nguyễn Khắc Minh Demo',
       'Mã nhân viên': '431451',
-      'Email': 'minhnk2@viettel.com.vn',
-      'Số điện thoại': '0977112233',
+      'Email': 'minhk.demo@example.com',
+      'Số điện thoại': '900000003',
       'Địa chỉ': 'Hà Nội',
-      'Chức danh': 'AI Eng',
-      'Đơn vị': 'CNM - VAI',
+      'Chức danh': 'AI Engineer',
+      'Đơn vị': 'CNM-VAI',
       'Vai trò': 'User',
     },
     {
       'STT': 4,
-      'Họ và tên': 'AI Service',
+      'Họ và tên': 'AI Service Demo',
       'Mã nhân viên': '888888',
-      'Email': 'ai_service@viettelai.vn',
+      'Email': 'ai_service@example.com',
       'Số điện thoại': '0966554433',
       'Địa chỉ': 'Hà Nội',
       'Chức danh': 'AI Service',
@@ -58,7 +59,10 @@ export function downloadSampleExcelTemplate() {
 }
 
 /**
- * Parse file Excel từ FileReader
+ * Smart Excel File Parser:
+ * 1. Đọc file dưới dạng mảng các hàng raw (Array of Arrays matrix).
+ * 2. Tự động phát hiện hàng chứa Tiêu đề (Header row detection).
+ * 3. Tạo dữ liệu JSON linh hoạt vừa có key tiêu đề vừa lưu mảng vị trí _rawArray để fallback.
  */
 export async function parseExcelFile(file) {
   return new Promise((resolve, reject) => {
@@ -70,10 +74,54 @@ export async function parseExcelFile(file) {
         const firstSheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[firstSheetName];
 
+        // 1. Đọc sheet dưới dạng mảng matrix các dòng (Array of Arrays)
+        const rawMatrix = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+        
+        if (!rawMatrix || rawMatrix.length === 0) {
+          return resolve([]);
+        }
+
+        // 2. Tìm hàng tiêu đề (quét 15 hàng đầu tiên)
+        let headerRowIndex = -1;
+        for (let i = 0; i < Math.min(15, rawMatrix.length); i++) {
+          const rowStr = rawMatrix[i].map(c => removeVietnameseAccents(String(c || '')).toLowerCase()).join(' ');
+          if (rowStr.includes('ho va ten') || rowStr.includes('ma nhan vien') || rowStr.includes('ho ten') || rowStr.includes('email') || rowStr.includes('stt')) {
+            headerRowIndex = i;
+            break;
+          }
+        }
+
+        // 3. Nếu tìm thấy hàng tiêu đề:
+        if (headerRowIndex !== -1) {
+          const headers = rawMatrix[headerRowIndex].map(h => String(h || '').trim());
+          const dataRows = [];
+
+          for (let i = headerRowIndex + 1; i < rawMatrix.length; i++) {
+            const rowArr = rawMatrix[i];
+            // Bỏ qua các hàng hoàn toàn trống
+            if (!rowArr || rowArr.every(cell => String(cell || '').trim() === '')) {
+              continue;
+            }
+
+            const rowObj = {};
+            for (let j = 0; j < headers.length; j++) {
+              const headerKey = headers[j] || `__col_${j}`;
+              rowObj[headerKey] = rowArr[j] !== undefined && rowArr[j] !== null ? String(rowArr[j]).trim() : '';
+            }
+
+            // Đính kèm _rawArray để fallback lấy giá trị theo chỉ số vị trí cột
+            rowObj._rawArray = rowArr;
+            dataRows.push(rowObj);
+          }
+
+          return resolve(dataRows);
+        }
+
+        // 4. Fallback mặc định
         const jsonRows = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
         resolve(jsonRows);
       } catch (err) {
-        reject(new Error('Khái niệm cấu trúc file Excel không đúng hoặc file bị lỗi.'));
+        reject(new Error('Cấu trúc file Excel không hợp lệ hoặc file bị lỗi. ' + err.message));
       }
     };
     reader.onerror = () => reject(new Error('Đọc file thất bại.'));
@@ -105,7 +153,6 @@ export function exportUsersToExcel(users, filename = 'Danh_sach_nguoi_dung.xlsx'
 
 /**
  * 🛑 XỬ LÝ BÀI TOÁN XUẤT FILE BÁO BẢNG LỖI IMPORT
- * Tạo file Excel chứa các dòng dữ liệu bị lỗi kèm cột "Lý do lỗi" để người dùng tải về chỉnh sửa.
  */
 export function exportErrorReportExcel(failedRows) {
   const exportData = failedRows.map((item) => ({

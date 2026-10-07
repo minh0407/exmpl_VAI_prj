@@ -21,15 +21,45 @@ export function removeVietnameseAccents(str) {
 }
 
 /**
- * Smart Dynamic Key Extractor
- * Lấy giá trị trường từ đối tượng row bất kể tên tiêu đề Excel viết hoa/thường, có dấu/không dấu, có khoảng trắng thừa hay ký tự *.
+ * Smart Dynamic Key Extractor with Triple Fallback:
+ * 1. Exact key match
+ * 2. Normalized key match (removes accents, spaces, special chars, lowercases)
+ * 3. Positional array index fallback (Column 1=Full Name, 2=Staff Code, 3=Email, etc.)
  */
 export function getValueFromRow(row, possibleKeys, defaultValue = '') {
   if (!row) return defaultValue;
 
-  // Nếu row là Array (dữ liệu mảng từ Handsontable)
-  if (Array.isArray(row)) {
-    const keyMapIndex = {
+  const rawArray = Array.isArray(row) ? row : row._rawArray;
+
+  // 1. Exact key match on Object
+  if (!Array.isArray(row) && typeof row === 'object') {
+    for (const key of possibleKeys) {
+      if (row[key] !== undefined && row[key] !== null && String(row[key]).trim() !== '') {
+        return String(row[key]).trim();
+      }
+    }
+
+    // 2. Normalized key match on Object
+    const normalizedRow = {};
+    for (const k of Object.keys(row)) {
+      if (k === '_rawArray') continue;
+      const normK = removeVietnameseAccents(k).toLowerCase().replace(/[^a-z0-9]/g, '');
+      if (normK) {
+        normalizedRow[normK] = row[k];
+      }
+    }
+
+    for (const key of possibleKeys) {
+      const normSearchKey = removeVietnameseAccents(key).toLowerCase().replace(/[^a-z0-9]/g, '');
+      if (normalizedRow[normSearchKey] !== undefined && normalizedRow[normSearchKey] !== null && String(normalizedRow[normSearchKey]).trim() !== '') {
+        return String(normalizedRow[normSearchKey]).trim();
+      }
+    }
+  }
+
+  // 3. Positional column index fallback on Array
+  if (Array.isArray(rawArray)) {
+    const posMap = {
       full_name: 1,
       staff_code: 2,
       email: 3,
@@ -39,38 +69,12 @@ export function getValueFromRow(row, possibleKeys, defaultValue = '') {
       department: 7,
       role: 8,
     };
+
     for (const key of possibleKeys) {
-      const idx = keyMapIndex[key];
-      if (idx !== undefined && row[idx] !== undefined && row[idx] !== null && String(row[idx]).trim() !== '') {
-        return String(row[idx]).trim();
+      const pos = posMap[key];
+      if (pos !== undefined && rawArray[pos] !== undefined && rawArray[pos] !== null && String(rawArray[pos]).trim() !== '') {
+        return String(rawArray[pos]).trim();
       }
-    }
-    return defaultValue;
-  }
-
-  if (typeof row !== 'object') return defaultValue;
-
-  // 1. Kiểm tra trực tiếp tên key chính xác
-  for (const key of possibleKeys) {
-    if (row[key] !== undefined && row[key] !== null && String(row[key]).trim() !== '') {
-      return String(row[key]).trim();
-    }
-  }
-
-  // 2. Chuẩn hóa tất cả các key trong row (bỏ dấu, viết thường, xóa khoảng trắng & ký tự đặc biệt)
-  const normalizedRow = {};
-  for (const k of Object.keys(row)) {
-    const normK = removeVietnameseAccents(k).toLowerCase().replace(/[^a-z0-9]/g, '');
-    if (normK) {
-      normalizedRow[normK] = row[k];
-    }
-  }
-
-  // So sánh với danh sách key cần tìm đã chuẩn hóa
-  for (const key of possibleKeys) {
-    const normSearchKey = removeVietnameseAccents(key).toLowerCase().replace(/[^a-z0-9]/g, '');
-    if (normalizedRow[normSearchKey] !== undefined && normalizedRow[normSearchKey] !== null && String(normalizedRow[normSearchKey]).trim() !== '') {
-      return String(normalizedRow[normSearchKey]).trim();
     }
   }
 
