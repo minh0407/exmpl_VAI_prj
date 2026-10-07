@@ -19,3 +19,60 @@ export function removeVietnameseAccents(str) {
   result = result.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   return result;
 }
+
+/**
+ * Smart Dynamic Key Extractor
+ * Lấy giá trị trường từ đối tượng row bất kể tên tiêu đề Excel viết hoa/thường, có dấu/không dấu, có khoảng trắng thừa hay ký tự *.
+ */
+export function getValueFromRow(row, possibleKeys, defaultValue = '') {
+  if (!row) return defaultValue;
+
+  // Nếu row là Array (dữ liệu mảng từ Handsontable)
+  if (Array.isArray(row)) {
+    const keyMapIndex = {
+      full_name: 1,
+      staff_code: 2,
+      email: 3,
+      phone: 4,
+      address: 5,
+      job_title: 6,
+      department: 7,
+      role: 8,
+    };
+    for (const key of possibleKeys) {
+      const idx = keyMapIndex[key];
+      if (idx !== undefined && row[idx] !== undefined && row[idx] !== null && String(row[idx]).trim() !== '') {
+        return String(row[idx]).trim();
+      }
+    }
+    return defaultValue;
+  }
+
+  if (typeof row !== 'object') return defaultValue;
+
+  // 1. Kiểm tra trực tiếp tên key chính xác
+  for (const key of possibleKeys) {
+    if (row[key] !== undefined && row[key] !== null && String(row[key]).trim() !== '') {
+      return String(row[key]).trim();
+    }
+  }
+
+  // 2. Chuẩn hóa tất cả các key trong row (bỏ dấu, viết thường, xóa khoảng trắng & ký tự đặc biệt)
+  const normalizedRow = {};
+  for (const k of Object.keys(row)) {
+    const normK = removeVietnameseAccents(k).toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (normK) {
+      normalizedRow[normK] = row[k];
+    }
+  }
+
+  // So sánh với danh sách key cần tìm đã chuẩn hóa
+  for (const key of possibleKeys) {
+    const normSearchKey = removeVietnameseAccents(key).toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (normalizedRow[normSearchKey] !== undefined && normalizedRow[normSearchKey] !== null && String(normalizedRow[normSearchKey]).trim() !== '') {
+      return String(normalizedRow[normSearchKey]).trim();
+    }
+  }
+
+  return defaultValue;
+}

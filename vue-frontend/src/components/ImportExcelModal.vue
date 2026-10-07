@@ -139,6 +139,7 @@ import 'handsontable/dist/handsontable.full.min.css';
 import { useUserStore } from '../stores/userStore';
 import { parseExcelFile, downloadSampleExcelTemplate } from '../utils/excelHelper';
 import { fuzzySearchList } from '../utils/fuzzySearch';
+import { getValueFromRow } from '../utils/vietnamese';
 
 const store = useUserStore();
 
@@ -157,17 +158,17 @@ const initHandsontable = (data) => {
     hotInstance.destroy();
   }
 
-  // Chuyển đổi dữ liệu JSON thành mảng mảng (array of arrays) cho Handsontable
+  // Chuyển đổi dữ liệu JSON thành mảng mảng (array of arrays) cho Handsontable với getValueFromRow linh hoạt
   const tableData = data.map((row, index) => [
     index + 1,
-    row['Họ và tên'] || row.full_name || '',
-    row['Mã nhân viên'] || row.staff_code || '',
-    row['Email'] || row.email || '',
-    row['Số điện thoại'] || row.phone || '',
-    row['Địa chỉ'] || row.address || '',
-    row['Chức danh'] || row.job_title || 'Kỹ sư',
-    row['Đơn vị'] || row.department || 'CNM-VAI',
-    row['Vai trò'] || row.role || 'User',
+    getValueFromRow(row, ['full_name', 'Họ và tên', 'Họ tên', 'Họ Và Tên', 'Họ và tên *', 'Full Name', 'fullName', 'Tên', 'name']),
+    getValueFromRow(row, ['staff_code', 'Mã nhân viên', 'Mã NV', 'Mã số NV', 'Mã nhân viên *', 'Staff Code', 'staffCode', 'MNV', 'code']),
+    getValueFromRow(row, ['email', 'Email', 'Mail', 'Thư điện tử']),
+    getValueFromRow(row, ['phone', 'Số điện thoại', 'SĐT', 'Số ĐT', 'Điện thoại', 'Phone', 'Mobile']),
+    getValueFromRow(row, ['address', 'Địa chỉ', 'Address', 'Nơi ở']),
+    getValueFromRow(row, ['job_title', 'Chức danh', 'jobTitle', 'Chức vụ', 'Position', 'Job Title']),
+    getValueFromRow(row, ['department', 'Đơn vị', 'Department', 'Phòng ban', 'Bộ phận', 'Unit']),
+    getValueFromRow(row, ['role', 'Vai trò', 'Role', 'Quyền'], 'User'),
   ]);
 
   hotInstance = new Handsontable(hotContainer.value, {
@@ -181,8 +182,8 @@ const initHandsontable = (data) => {
       { type: 'text', width: 130 },
       { type: 'text', width: 160 },
       { type: 'text', width: 150 },
-      { type: 'dropdown', source: ['CNM-VAI', 'VTNet', 'VAI', 'VTS'], width: 120 },
-      { type: 'dropdown', source: ['Admin', 'User', 'Editor'], width: 100 },
+      { type: 'autocomplete', source: ['CNM-VAI', 'VTNet', 'VAI', 'VTS', 'TT Phần mềm', 'Khối Công nghệ', 'Khối Kinh doanh'], strict: false, width: 140 },
+      { type: 'autocomplete', source: ['Admin', 'User', 'Editor'], strict: false, width: 100 },
     ],
     // 💡 LAZY LOAD & VIRTUALIZATION OPTIMIZATION CONFIG:
     renderAllRows: false,              // Chỉ render các row hiển thị trong Viewport
@@ -197,6 +198,7 @@ const initHandsontable = (data) => {
     licenseKey: 'non-commercial-and-evaluation',
   });
 };
+
 
 const handleFileSelect = async (file) => {
   try {

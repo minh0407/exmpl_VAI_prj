@@ -1,3 +1,5 @@
+import { getValueFromRow } from './vietnamese';
+
 /**
  * ⚡ TRICK IMPORT HÀNG LOẠT (High-Performance Chunked Batch Import Trick)
  * 1. Chia mảng dữ liệu cực lớn (10.000+ bản ghi) thành các micro-chunks (VD: 500 bản ghi/chunk).
@@ -64,19 +66,19 @@ export async function processBatchChunks(items, batchSize = 500, processItemFn, 
 
 /**
  * 🛑 XỬ LÝ BÀI TOÁN XÁC MINH & BÁO LỖI HÀNG (Row-Level Validation)
+ * Sử dụng getValueFromRow thông minh để tự động nhận dạng đúng cột bất kể tên header trong file Excel
  */
 export function validateUserRow(row, rowIndex, existingStaffCodes = new Set()) {
   const errors = [];
 
-  // Standardize keys
-  const fullName = String(row.full_name || row['Họ và tên'] || row.fullName || '').trim();
-  const staffCode = String(row.staff_code || row['Mã nhân viên'] || row.staffCode || '').trim();
-  const email = String(row.email || row['Email'] || '').trim().toLowerCase();
-  const phone = String(row.phone || row['Số điện thoại'] || '').trim();
-  const address = String(row.address || row['Địa chỉ'] || '').trim();
-  const jobTitle = String(row.job_title || row['Chức danh'] || row.jobTitle || 'Kỹ sư').trim();
-  const department = String(row.department || row['Đơn vị'] || 'CNM-VAI').trim();
-  const role = String(row.role || row['Vai trò'] || 'User').trim();
+  const fullName = getValueFromRow(row, ['full_name', 'Họ và tên', 'Họ tên', 'Họ Và Tên', 'Họ và tên *', 'Full Name', 'fullName', 'Tên', 'name']);
+  const staffCode = getValueFromRow(row, ['staff_code', 'Mã nhân viên', 'Mã NV', 'Mã số NV', 'Mã nhân viên *', 'Staff Code', 'staffCode', 'MNV', 'code']);
+  const email = getValueFromRow(row, ['email', 'Email', 'Mail', 'Thư điện tử']).toLowerCase();
+  const phone = getValueFromRow(row, ['phone', 'Số điện thoại', 'SĐT', 'Số ĐT', 'Điện thoại', 'Phone', 'Mobile']);
+  const address = getValueFromRow(row, ['address', 'Địa chỉ', 'Address', 'Nơi ở']);
+  const jobTitle = getValueFromRow(row, ['job_title', 'Chức danh', 'jobTitle', 'Chức vụ', 'Position', 'Job Title'], 'Kỹ sư');
+  const department = getValueFromRow(row, ['department', 'Đơn vị', 'Department', 'Phòng ban', 'Bộ phận', 'Unit'], 'CNM-VAI');
+  const role = getValueFromRow(row, ['role', 'Vai trò', 'Role', 'Quyền'], 'User');
 
   if (!fullName) {
     errors.push('Họ và tên không được để trống');
