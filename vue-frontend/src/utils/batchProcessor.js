@@ -77,8 +77,9 @@ export async function processBatchChunks(items, batchSize = 500, processItemFn, 
  * 🛑 XỬ LÝ BÀI TOÁN XÁC MINH & BÁO LỖI HÀNG (Row-Level Validation)
  * Sử dụng getValueFromRow thông minh để tự động nhận dạng đúng cột bất kể tên header trong file Excel
  */
-export function validateUserRow(row, rowIndex, existingStaffCodes = new Set(), seenInBatch = new Set()) {
+export function validateUserRow(row, rowIndex, existingStaffCodes = new Set(), seenInBatch = new Set(), allowDuplicateOverwrite = true) {
   const errors = [];
+  let isDuplicate = false;
 
   const rawFullName = getValueFromRow(row, ['full_name', 'Họ và tên', 'Họ tên', 'Họ Và Tên', 'Họ và tên *', 'Full Name', 'fullName', 'Tên', 'name']);
   const rawStaffCode = getValueFromRow(row, ['staff_code', 'Mã nhân viên', 'Mã NV', 'Mã số NV', 'Mã nhân viên *', 'Staff Code', 'staffCode', 'MNV', 'code']);
@@ -105,7 +106,12 @@ export function validateUserRow(row, rowIndex, existingStaffCodes = new Set(), s
   if (!staffCode) {
     errors.push('Mã nhân viên không được để trống');
   } else if (existingStaffCodes.has(staffCode) || seenInBatch.has(staffCode)) {
-    errors.push(`Mã nhân viên '${staffCode}' trùng lặp trong hệ thống/file`);
+    isDuplicate = true;
+    if (!allowDuplicateOverwrite) {
+      errors.push(`Mã nhân viên '${staffCode}' trùng lặp trong hệ thống/file`);
+    } else {
+      seenInBatch.add(staffCode);
+    }
   } else {
     seenInBatch.add(staffCode);
   }
@@ -133,6 +139,7 @@ export function validateUserRow(row, rowIndex, existingStaffCodes = new Set(), s
 
   return {
     valid: isValid,
+    isDuplicate,
     rowIndex,
     data: userData,
     errors,

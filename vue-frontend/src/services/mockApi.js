@@ -94,19 +94,45 @@ export const mockApi = {
     return true;
   },
 
-  // Import hàng loạt danh sách người dùng thành công
-  async importUsersBatch(userList) {
+  // Import hàng loạt danh sách người dùng thành công (Có hỗ trợ ghi đè dữ liệu trùng lặp)
+  async importUsersBatch(userList, allowOverwrite = true) {
     await new Promise(resolve => setTimeout(resolve, 200));
-    const createdUsers = userList.map(u => ({
-      id: nextId++,
-      ...u,
-    }));
-    usersDatabase = [...createdUsers, ...usersDatabase];
-    return { count: createdUsers.length };
+    
+    let updatedCount = 0;
+    let insertedCount = 0;
+
+    userList.forEach(newUser => {
+      const existingIndex = usersDatabase.findIndex(u => String(u.staff_code) === String(newUser.staff_code));
+      if (existingIndex !== -1) {
+        if (allowOverwrite) {
+          // Ghi đè dữ liệu mới thay cho dữ liệu cũ bị trùng bất cứ thông tin nào
+          usersDatabase[existingIndex] = {
+            ...usersDatabase[existingIndex],
+            full_name: newUser.full_name || usersDatabase[existingIndex].full_name,
+            email: newUser.email || usersDatabase[existingIndex].email,
+            phone: newUser.phone || usersDatabase[existingIndex].phone,
+            address: newUser.address || usersDatabase[existingIndex].address,
+            job_title: newUser.job_title || usersDatabase[existingIndex].job_title,
+            department: newUser.department || usersDatabase[existingIndex].department,
+            role: newUser.role || usersDatabase[existingIndex].role,
+          };
+          updatedCount++;
+        }
+      } else {
+        // Thêm mới tài khoản
+        usersDatabase.unshift({
+          id: nextId++,
+          ...newUser,
+        });
+        insertedCount++;
+      }
+    });
+
+    return { updatedCount, insertedCount, total: updatedCount + insertedCount };
   },
 
   // Lấy tập hợp mã nhân viên hiện có (dùng kiểm tra trùng lặp)
   async getExistingStaffCodes() {
-    return new Set(usersDatabase.map(u => u.staff_code));
+    return new Set(usersDatabase.map(u => String(u.staff_code)));
   }
 };

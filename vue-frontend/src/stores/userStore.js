@@ -153,7 +153,7 @@ export const useUserStore = defineStore('userStore', {
     /**
      * ⚡ THỰC THI TRICK IMPORT HÀNG LOẠT VỚI BATCH CHUNKING & BÁO LỖI
      */
-    async executeBatchImport(editedRows) {
+    async executeBatchImport(editedRows, allowOverwrite = true) {
       if (!editedRows || editedRows.length === 0) {
         message.warning('Không có dữ liệu để import!');
         return;
@@ -170,7 +170,7 @@ export const useUserStore = defineStore('userStore', {
       const result = await processBatchChunks(
         editedRows,
         500, // Batch size 500
-        (row, index) => validateUserRow(row, index, existingStaffCodes),
+        (row, index, seenInBatch) => validateUserRow(row, index, existingStaffCodes, seenInBatch, allowOverwrite),
         (progressInfo) => {
           this.importingProgress = progressInfo.percent;
           this.batchStats = { ...progressInfo };
@@ -180,8 +180,16 @@ export const useUserStore = defineStore('userStore', {
       this.lastFailedRows = result.failedRows;
 
       if (result.successRows.length > 0) {
-        await mockApi.importUsersBatch(result.successRows);
-        message.success(`Đã import thành công ${result.successRows.length}/${editedRows.length} bản ghi!`);
+        const importRes = await mockApi.importUsersBatch(result.successRows, allowOverwrite);
+        
+        if (importRes.updatedCount > 0 && importRes.insertedCount > 0) {
+          message.success(`Đã cập nhật ${importRes.updatedCount} tài khoản trùng và thêm mới ${importRes.insertedCount} tài khoản!`);
+        } else if (importRes.updatedCount > 0) {
+          message.success(`Đã cập nhật thành công ${importRes.updatedCount} tài khoản bị trùng dữ liệu!`);
+        } else {
+          message.success(`Đã import thành công ${importRes.insertedCount} bản ghi mới!`);
+        }
+
         this.fetchUsers();
       }
 

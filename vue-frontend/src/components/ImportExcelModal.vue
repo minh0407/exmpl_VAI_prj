@@ -27,6 +27,17 @@
             Tải file mẫu
           </a-button>
 
+          <!-- Button Xóa dòng chọn trong Bảng Handsontable -->
+          <a-button
+            v-if="parsedRows.length > 0"
+            size="large"
+            danger
+            @click="handleDeleteSelectedRow"
+          >
+            <template #icon><DeleteOutlined /></template>
+            Xóa dòng chọn
+          </a-button>
+
           <!-- Search Gần Đúng + AutoComplete trong Bảng Excel -->
           <div class="excel-search-box" v-if="parsedRows.length > 0">
             <a-auto-complete
@@ -127,18 +138,21 @@
 </template>
 
 <script setup>
-import { ref, watch, onMounted, onBeforeUnmount, nextTick, computed } from 'vue';
-import { message } from 'ant-design-vue';
+import { ref, watch, onMounted, onBeforeUnmount, nextTick, computed, h } from 'vue';
+import { message, Modal } from 'ant-design-vue';
 import {
   UploadOutlined,
   DownloadOutlined,
   FileExcelOutlined,
   CheckCircleOutlined,
+  DeleteOutlined,
+  ExclamationCircleOutlined,
 } from '@ant-design/icons-vue';
 import Handsontable from 'handsontable';
 import 'handsontable/dist/handsontable.full.min.css';
 
 import { useUserStore } from '../stores/userStore';
+import { mockApi } from '../services/mockApi';
 import { parseExcelFile, downloadSampleExcelTemplate } from '../utils/excelHelper';
 import { fuzzySearchList, binarySearchRow } from '../utils/fuzzySearch';
 import { getValueFromRow, removeVietnameseAccents } from '../utils/vietnamese';
@@ -199,6 +213,29 @@ const modalAutoCompleteOptions = computed(() => {
   return options.slice(0, 8); // Tối đa 8 gợi ý phù hợp nhất
 });
 
+// 🗑️ CHỨC NĂNG XÓA DÒNG ĐÃ CHỌN TRONG BẢNG HANDSONTABLE
+const handleDeleteSelectedRow = () => {
+  if (!hotInstance) return;
+
+  const selection = hotInstance.getSelected();
+  if (!selection || selection.length === 0) {
+    message.warning('Vui lòng click chọn ít nhất 1 dòng trong bảng để xóa!');
+    return;
+  }
+
+  // selection[0] = [startRow, startCol, endRow, endCol]
+  const startRow = Math.min(selection[0][0], selection[0][2]);
+  const endRow = Math.max(selection[0][0], selection[0][2]);
+  const amount = endRow - startRow + 1;
+
+  hotInstance.alter('remove_row', startRow, amount);
+  message.success(`Đã xóa ${amount} dòng thành công!`);
+
+  // Cập nhật lại state dữ liệu
+  const currentData = hotInstance.getData();
+  parsedRows.value = currentData;
+  filteredRows.value = currentData;
+};
 
 // --- HANDSONTABLE LAZY LOAD & VIRTUALIZATION CONFIGURATION ---
 const initHandsontable = (data) => {
@@ -265,15 +302,29 @@ const initHandsontable = (data) => {
     viewportColumnRenderingOffset: 5,
     height: '420px',
     rowHeaders: true,
-    contextMenu: true,
+    contextMenu: {
+      items: {
+        'remove_row': { name: '❌ Xóa các dòng đã chọn' },
+        'row_above': { name: '➕ Chèn 1 dòng phía trên' },
+        'row_below': { name: '➕ Chèn 1 dòng phía dưới' },
+        'hsep1': '---------',
+        'undo': { name: '↩️ Hoàn tác (Undo)' },
+        'redo': { name: '↪️ Làm lại (Redo)' },
+      }
+    },
+    afterRemoveRow: function (index, amount) {
+      if (hotInstance) {
+        const data = hotInstance.getData();
+        parsedRows.value = data;
+        filteredRows.value = data;
+      }
+    },
     manualColumnResize: true,
     manualRowResize: true,
     stretchH: 'all',
     licenseKey: 'non-commercial-and-evaluation',
   });
 };
-
-
 
 const handleFileSelect = async (file) => {
   try {
@@ -309,8 +360,8 @@ const handleFuzzySearch = () => {
   });
 };
 
-// Trích xuất dữ liệu đã chỉnh sửa từ Handsontable để Import
-const startImportProcess = () => {
+// ⚡ XỬ LÝ TRÙNG LẶP DỮ LIỆU & HỎI Ý KIẾN NGƯỜI DÙNG TRƯỚC KHI IMPORT
+const startImportProcess = async () => {
   if (!hotInstance) return;
 
   const currentTableData = hotInstance.getData();
@@ -325,7 +376,66 @@ const startImportProcess = () => {
     role: row[8],
   }));
 
-  store.executeBatchImport(formattedRows);
+  // Kiểm tra trùng lặp với DB & trùng lặp nội bộ trong file Excel
+  const existingStaffCodes = await mockApi.getExistingStaffCodes();
+  const duplicateList = [];
+  const seenInFile = new Set();
+
+  formattedRows.forEach((row, idx) => {
+    const code = String(row.staff_code || '').trim();
+    if (code) {
+      if (existingStaffCodes.has(code)) {
+        duplicateList.push({ stt: idx + 1, staff_code: code, name: row.full_name || 'Chưa đặt tên', type: 'Đã có trong Hệ thống' });
+      } else if (seenInFile.has(code)) {
+        duplicateList.push({ stt: idx + 1, staff_code: code, name: row.full_name || 'Chưa đặt tên', type: 'Bị lặp lại trong File Excel' });
+      } else {
+        seenInFile.add(code);
+      }
+    }
+  });
+
+  // Nếu phát hiện có dòng bị trùng Mã nhân viên
+  if (duplicateList.length > 0) {
+    Modal.confirm({
+      title: `⚠️ Phát hiện ${duplicateList.length} dòng bị trùng dữ liệu (Mã NV)!`,
+      width: 580,
+      icon: h(ExclamationCircleOutlined, { style: { color: '#faad14' } }),
+      content: h('div', { style: 'margin-top: 12px;' }, [
+        h('p', { style: 'margin-bottom: 8px; font-weight: 500;' }, 
+          `Hệ thống phát hiện ${duplicateList.length} dòng trùng Mã nhân viên với dữ liệu hiện tại/trong file.`
+        ),
+        h('div', { 
+          style: 'max-height: 180px; overflow-y: auto; background: #fffbe6; padding: 10px; border: 1px solid #ffe58f; border-radius: 6px; font-size: 13px; margin-bottom: 12px;' 
+        }, duplicateList.slice(0, 100).map(d => 
+          h('div', { key: d.stt, style: 'margin-bottom: 4px;' }, 
+            `• Dòng ${d.stt}: Mã NV [${d.staff_code}] - ${d.name} (${d.type})`
+          )
+        )),
+        h('p', { style: 'color: #d48806; font-size: 13px; margin: 0;' }, 
+          '💡 Dữ liệu từ file Excel sẽ TỰ ĐỘNG CẬP NHẬT GHI ĐÈ thay cho thông tin cũ nếu bạn chọn Đồng ý.'
+        )
+      ]),
+      okText: '🟢 Đồng ý Cập nhật (Ghi đè) & Thêm mới',
+      cancelText: '🟡 Chỉ thêm dòng mới (Bỏ qua trùng)',
+      closable: true,
+      maskClosable: false,
+      onOk() {
+        // Ghi đè dữ liệu mới thay cho dữ liệu cũ bị trùng bất cứ thông tin nào
+        store.executeBatchImport(formattedRows, true);
+      },
+      onCancel(e) {
+        if (e?.triggerCancel) {
+          // Bấm X hoặc bấm ra ngoài -> Hủy thao tác import
+          return;
+        }
+        // Chọn "Chỉ thêm dòng mới (Bỏ qua trùng)"
+        store.executeBatchImport(formattedRows, false);
+      },
+    });
+  } else {
+    // Không có bản ghi bị trùng, import trực tiếp
+    store.executeBatchImport(formattedRows, true);
+  }
 };
 
 onBeforeUnmount(() => {
