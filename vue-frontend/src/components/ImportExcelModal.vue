@@ -27,20 +27,22 @@
             Tải file mẫu
           </a-button>
 
-          <!-- Search Gần Đúng trong Bảng Excel -->
+          <!-- Search Gần Đúng + AutoComplete trong Bảng Excel -->
           <div class="excel-search-box" v-if="parsedRows.length > 0">
-            <a-input-search
+            <a-auto-complete
               v-model:value="searchQuery"
-              placeholder="🔍 Tìm gần đúng trong file (Họ tên, Mã NV, Email...)"
-              style="width: 320px"
+              :options="modalAutoCompleteOptions"
+              placeholder="🔍 Tìm gần đúng trong file (Họ tên, Mã NV...)"
+              style="width: 340px"
               allow-clear
-              @search="handleFuzzySearch"
+              @select="handleFuzzySearch"
               @change="handleFuzzySearch"
             />
             <span v-if="filteredRows.length !== parsedRows.length" class="search-result-count">
               Tìm thấy {{ filteredRows.length }}/{{ parsedRows.length }} dòng
             </span>
           </div>
+
         </div>
 
         <div class="right-actions">
@@ -125,7 +127,7 @@
 </template>
 
 <script setup>
-import { ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue';
+import { ref, watch, onMounted, onBeforeUnmount, nextTick, computed } from 'vue';
 import { message } from 'ant-design-vue';
 import {
   UploadOutlined,
@@ -139,7 +141,7 @@ import 'handsontable/dist/handsontable.full.min.css';
 import { useUserStore } from '../stores/userStore';
 import { parseExcelFile, downloadSampleExcelTemplate } from '../utils/excelHelper';
 import { fuzzySearchList } from '../utils/fuzzySearch';
-import { getValueFromRow } from '../utils/vietnamese';
+import { getValueFromRow, removeVietnameseAccents } from '../utils/vietnamese';
 
 const store = useUserStore();
 
@@ -149,6 +151,41 @@ let hotInstance = null;
 const parsedRows = ref([]);
 const filteredRows = ref([]);
 const searchQuery = ref('');
+
+// 💡 Gợi ý AutoComplete thông minh cho ô tìm kiếm trong Modal Excel
+const modalAutoCompleteOptions = computed(() => {
+  if (!searchQuery.value || !searchQuery.value.trim() || !parsedRows.value || parsedRows.value.length === 0) return [];
+
+  const normQuery = removeVietnameseAccents(searchQuery.value).toLowerCase();
+  const suggestions = new Set();
+  const options = [];
+
+  for (const row of parsedRows.value) {
+    const name = getValueFromRow(row, ['full_name', 'Họ và tên', 'Họ tên', 'Full Name']);
+    const code = getValueFromRow(row, ['staff_code', 'Mã nhân viên', 'Mã NV', 'Staff Code']);
+    const email = getValueFromRow(row, ['email', 'Email', 'Mail']);
+    const dept = getValueFromRow(row, ['department', 'Đơn vị', 'Department']);
+
+    const fields = [
+      { text: name, label: `👤 ${name} (${code})` },
+      { text: code, label: `💳 Mã NV: ${code}` },
+      { text: email, label: `✉ ${email}` },
+      { text: dept, label: `🏢 Đơn vị: ${dept}` },
+    ];
+
+    for (const f of fields) {
+      if (f.text && removeVietnameseAccents(f.text).toLowerCase().includes(normQuery)) {
+        if (!suggestions.has(f.text)) {
+          suggestions.add(f.text);
+          options.push({ value: f.text, label: f.label });
+        }
+      }
+    }
+  }
+
+  return options.slice(0, 8); // Tối đa 8 gợi ý phù hợp nhất
+});
+
 
 // --- HANDSONTABLE LAZY LOAD & VIRTUALIZATION CONFIGURATION ---
 const initHandsontable = (data) => {

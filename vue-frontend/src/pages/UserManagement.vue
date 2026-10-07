@@ -6,16 +6,19 @@
         <h1 class="page-title">Danh sách người dùng</h1>
 
         <div class="header-controls">
-          <!-- Main Search Box -->
+          <!-- Main Search Box with AutoComplete -->
           <div class="search-input-wrapper">
-            <a-input
+            <a-auto-complete
               v-model:value="searchInput"
-              placeholder="🔍 Tìm kiếm"
+              :options="autoCompleteOptions"
+              placeholder="🔍 Tìm kiếm (gợi ý Họ tên, Mã NV, Email...)"
               allow-clear
-              style="width: 260px"
+              style="width: 320px"
+              @select="onSearchSelect"
               @change="handleSearchChange"
             />
           </div>
+
 
           <div class="button-group">
             <a-button class="btn-secondary" @click="downloadSampleExcelTemplate">
@@ -114,7 +117,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import { Modal } from 'ant-design-vue';
 import {
   DownloadOutlined,
@@ -128,6 +131,7 @@ import {
 
 import { useUserStore } from '../stores/userStore';
 import { downloadSampleExcelTemplate, exportUsersToExcel } from '../utils/excelHelper';
+import { removeVietnameseAccents } from '../utils/vietnamese';
 
 import ImportExcelModal from '../components/ImportExcelModal.vue';
 import UserFormModal from '../components/UserFormModal.vue';
@@ -139,9 +143,45 @@ onMounted(() => {
   store.fetchUsers();
 });
 
+// 💡 Gợi ý AutoComplete thông minh cho ô tìm kiếm
+const autoCompleteOptions = computed(() => {
+  if (!searchInput.value || !searchInput.value.trim()) return [];
+
+  const normQuery = removeVietnameseAccents(searchInput.value).toLowerCase();
+  const suggestions = new Set();
+  const options = [];
+
+  for (const user of store.users) {
+    const fields = [
+      { text: user.full_name, label: `👤 ${user.full_name} (${user.staff_code})` },
+      { text: user.staff_code, label: `💳 Mã NV: ${user.staff_code}` },
+      { text: user.email, label: `✉ ${user.email}` },
+      { text: user.job_title, label: `💼 Chức danh: ${user.job_title}` },
+      { text: user.department, label: `🏢 Đơn vị: ${user.department}` },
+    ];
+
+    for (const f of fields) {
+      if (f.text && removeVietnameseAccents(f.text).toLowerCase().includes(normQuery)) {
+        if (!suggestions.has(f.text)) {
+          suggestions.add(f.text);
+          options.push({ value: f.text, label: f.label });
+        }
+      }
+    }
+  }
+
+  return options.slice(0, 8); // Tối đa 8 gợi ý phù hợp nhất
+});
+
+const onSearchSelect = (value) => {
+  searchInput.value = value;
+  store.setSearchQuery(value);
+};
+
 const handleSearchChange = () => {
   store.setSearchQuery(searchInput.value);
 };
+
 
 const handleTableChange = (pagination, filters, sorter) => {
   store.setTableChange(pagination, filters, sorter);
