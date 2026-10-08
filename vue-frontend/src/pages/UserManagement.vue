@@ -117,7 +117,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, onBeforeUnmount, computed } from 'vue';
 import { Modal } from 'ant-design-vue';
 import {
   DownloadOutlined,
@@ -139,8 +139,19 @@ import UserFormModal from '../components/UserFormModal.vue';
 const store = useUserStore();
 const searchInput = ref('');
 
+const handlePopState = () => {
+  store.initFromUrl();
+  searchInput.value = store.searchQuery;
+};
+
 onMounted(() => {
-  store.fetchUsers();
+  store.initFromUrl();
+  searchInput.value = store.searchQuery;
+  window.addEventListener('popstate', handlePopState);
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('popstate', handlePopState);
 });
 
 // 💡 Gợi ý AutoComplete thông minh cho ô tìm kiếm
@@ -237,8 +248,8 @@ const getRoleTagColor = (role) => {
   return 'default';
 };
 
-// Table Columns configuration matching UI screenshot
-const columns = [
+// Table Columns configuration matching UI screenshot with dynamic URL state bindings
+const columns = computed(() => [
   {
     title: 'STT',
     key: 'stt',
@@ -253,12 +264,14 @@ const columns = [
     dataIndex: 'full_name',
     key: 'full_name',
     sorter: true,
+    sortOrder: store.sorter.field === 'full_name' ? store.sorter.order : null,
   },
   {
     title: 'Mã nhân viên',
     dataIndex: 'staff_code',
     key: 'staff_code',
     sorter: true,
+    sortOrder: store.sorter.field === 'staff_code' ? store.sorter.order : null,
   },
   {
     title: 'Email',
@@ -270,6 +283,7 @@ const columns = [
     dataIndex: 'phone',
     key: 'phone',
     sorter: true,
+    sortOrder: store.sorter.field === 'phone' ? store.sorter.order : null,
   },
   {
     title: 'Địa chỉ',
@@ -280,6 +294,7 @@ const columns = [
     title: 'Chức danh',
     dataIndex: 'job_title',
     key: 'job_title',
+    filteredValue: store.filters.jobTitle ? [store.filters.jobTitle] : null,
     filters: [
       { text: 'Super Admin', value: 'Super Admin' },
       { text: 'Kỹ sư trí tuệ nhân tạo', value: 'Kỹ sư trí tuệ nhân tạo' },
@@ -292,6 +307,7 @@ const columns = [
     title: 'Đơn vị',
     dataIndex: 'department',
     key: 'department',
+    filteredValue: store.filters.department ? [store.filters.department] : null,
     filters: [
       { text: 'CNM-VAI', value: 'CNM-VAI' },
       { text: 'CNM - VAI', value: 'CNM - VAI' },
@@ -303,6 +319,7 @@ const columns = [
     title: 'Vai trò',
     dataIndex: 'role',
     key: 'role',
+    filteredValue: store.filters.role ? [store.filters.role] : null,
     filters: [
       { text: 'Admin', value: 'Admin' },
       { text: 'User', value: 'User' },
@@ -315,7 +332,7 @@ const columns = [
     width: 80,
     align: 'center',
   },
-];
+]);
 </script>
 
 <style scoped>

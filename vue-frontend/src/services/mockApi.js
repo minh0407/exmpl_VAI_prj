@@ -34,6 +34,11 @@ export const mockApi = {
       list = list.filter(u => u.department === params.department);
     }
 
+    // Filter by Job Title
+    if (params.jobTitle) {
+      list = list.filter(u => u.job_title === params.jobTitle);
+    }
+
     // Filter by Role
     if (params.role) {
       list = list.filter(u => u.role === params.role);

@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import { mockApi } from '../services/mockApi';
 import { processBatchChunks, validateUserRow } from '../utils/batchProcessor';
 import { exportErrorReportExcel } from '../utils/excelHelper';
+import { syncStateToUrl, syncUrlToState } from '../utils/urlSync';
 import { message } from 'ant-design-vue';
 
 export const useUserStore = defineStore('userStore', {
@@ -18,6 +19,7 @@ export const useUserStore = defineStore('userStore', {
     searchQuery: '',
     filters: {
       department: null,
+      jobTitle: null,
       role: null,
     },
     sorter: {
@@ -45,14 +47,23 @@ export const useUserStore = defineStore('userStore', {
   }),
 
   actions: {
+    initFromUrl() {
+      syncUrlToState(this);
+      this.fetchUsers();
+    },
+
     async fetchUsers() {
       this.loading = true;
       try {
+        // Tự động đồng bộ trạng thái hiện tại lên đường dẫn URL của trình duyệt
+        syncStateToUrl(this);
+
         const res = await mockApi.getUsers({
           page: this.pagination.current,
           pageSize: this.pagination.pageSize,
           search: this.searchQuery,
           department: this.filters.department,
+          jobTitle: this.filters.jobTitle,
           role: this.filters.role,
           sortBy: this.sorter.field,
           sortOrder: this.sorter.order,
@@ -85,6 +96,7 @@ export const useUserStore = defineStore('userStore', {
         this.pagination.pageSize = pagination.pageSize;
       }
       if (filters) {
+        this.filters.jobTitle = filters.job_title?.[0] || null;
         this.filters.department = filters.department?.[0] || null;
         this.filters.role = filters.role?.[0] || null;
       }
