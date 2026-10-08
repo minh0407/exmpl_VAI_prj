@@ -85,3 +85,60 @@ class WeeklyBaselineResponse(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+# --- EMPLOYEE MANAGEMENT SCHEMAS FOR FASTAPI + POSTGRESQL ---
+
+class EmployeeCreate(BaseModel):
+    staff_code: str = Field(min_length=1, max_length=50)
+    full_name: str = Field(min_length=1, max_length=100)
+    email: str = Field(min_length=3, max_length=255)
+    phone: str | None = None
+    address: str | None = None
+    job_title: str | None = None
+    department: str | None = None
+    role: str = "User"
+
+
+class EmployeeUpdate(BaseModel):
+    full_name: str | None = None
+    email: str | None = None
+    phone: str | None = None
+    address: str | None = None
+    job_title: str | None = None
+    department: str | None = None
+    role: str | None = None
+
+
+class EmployeeResponse(BaseModel):
+    id: int
+    staff_code: str
+    full_name: str
+    email: str
+    phone: str | None = None
+    address: str | None = None
+    job_title: str | None = None
+    department: str | None = None
+    role: str = "User"
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class PaginatedEmployeeResponse(BaseModel):
+    data: list[EmployeeResponse]
+    total: int
+    page: int
+    pageSize: int
+
+
+class BatchImportRequest(BaseModel):
+    users: list[EmployeeCreate]
+    allow_overwrite: bool = True
+
+
+class BatchImportResponse(BaseModel):
+    updated_count: int
+    inserted_count: int
+    total_processed: int
+

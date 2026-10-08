@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { mockApi } from '../services/mockApi';
+import { realApi as mockApi } from '../services/realApi';
 import { processBatchChunks, validateUserRow } from '../utils/batchProcessor';
 import { exportErrorReportExcel } from '../utils/excelHelper';
 import { syncStateToUrl, syncUrlToState } from '../utils/urlSync';

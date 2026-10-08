@@ -46,3 +46,19 @@ class WeeklyBaseline(Base):
     peak_requests_per_minute: Mapped[float] = mapped_column(Float, default=0.0)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
+
+class Employee(Base):
+    __tablename__ = "employees"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    staff_code: Mapped[str] = mapped_column(String(50), unique=True, index=True, nullable=False)
+    full_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    email: Mapped[str] = mapped_column(String(255), nullable=False)
+    phone: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    address: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    job_title: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    department: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    role: Mapped[str] = mapped_column(String(50), default="User")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
